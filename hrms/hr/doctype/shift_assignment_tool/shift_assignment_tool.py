@@ -204,6 +204,8 @@ class ShiftAssignmentTool(Document):
 
 	@frappe.whitelist()
 	def bulk_assign(self, employees: list):
+		if not frappe.has_permission("Shift Assignment", "create"):
+			frappe.throw("権限がありません", frappe.PermissionError)
 		if self.action == "Assign Shift":
 			mandatory_fields = ["shift_type"]
 			doctype = "Shift Assignments"

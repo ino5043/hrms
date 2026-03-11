@@ -54,6 +54,8 @@ class LeaveControlPanel(Document):
 
 	@frappe.whitelist()
 	def allocate_leave(self, employees: list):
+		if not frappe.has_permission("Leave Allocation", "create"):
+			frappe.throw("権限がありません", frappe.PermissionError)
 		self.validate_fields(employees)
 		if self.allocate_based_on_leave_policy:
 			return self.create_leave_policy_assignments(employees)

@@ -2741,26 +2741,53 @@ def on_doctype_update():
 
 
 def _safe_eval(code: str, eval_globals: dict | None = None, eval_locals: dict | None = None):
-	"""Old version of safe_eval from framework.
+	"""Safe expression evaluator for salary formulas.
 
-	Note: current frappe.safe_eval transforms code so if you have nested
-	iterations with too much depth then it can hit recursion limit of python.
-	There's no workaround for this and people need large formulas in some
-	countries so this is alternate implementation for that.
-
-	WARNING: DO NOT use this function anywhere else outside of this file.
+	Uses simpleeval (AST-based) instead of Python eval().
+	Supports arithmetic, comparisons, and whitelisted functions only.
 	"""
-	code = unicodedata.normalize("NFKC", code)
+	import unicodedata
 
+	import simpleeval
+
+	code = unicodedata.normalize("NFKC", code)
 	_check_attributes(code)
 
-	whitelisted_globals = {"int": int, "float": float, "long": int, "round": round}
-	if not eval_globals:
-		eval_globals = {}
+	names = {}
+	if eval_globals:
+		names.update(eval_globals)
+	if eval_locals:
+		names.update(eval_locals)
 
-	eval_globals["__builtins__"] = {}
-	eval_globals.update(whitelisted_globals)
-	return eval(code, eval_globals, eval_locals)  # nosemgrep
+	# Remove __builtins__ if present (not needed for simpleeval)
+	names.pop("__builtins__", None)
+
+	functions = {
+		"int": int,
+		"float": float,
+		"long": int,
+		"round": round,
+		"abs": abs,
+		"min": min,
+		"max": max,
+	}
+
+	# Import commonly used frappe utilities if available
+	try:
+		from frappe.utils import cint, cstr, flt, getdate, nowdate
+
+		functions.update({
+			"flt": flt,
+			"cint": cint,
+			"cstr": cstr,
+			"getdate": getdate,
+			"nowdate": nowdate,
+		})
+	except ImportError:
+		pass
+
+	evaluator = simpleeval.EvalWithCompoundTypes(names=names, functions=functions)
+	return evaluator.eval(code)
 
 
 def _check_attributes(code: str) -> None:

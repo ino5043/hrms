@@ -7,6 +7,42 @@ from frappe.utils import add_days, date_diff, getdate, strip_html
 
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
 
+def _check_employee_access(employee: str) -> None:
+	"""Verify current user can access this employee's data.
+
+	Allowed if:
+	1. User is Administrator
+	2. User is the employee (user_id matches)
+	3. User has HR Manager / HR User role
+	4. User is the employee's leave/expense/shift approver
+	"""
+	user = frappe.session.user
+	if user == "Administrator":
+		return
+
+	employee_user_id = frappe.db.get_value("Employee", employee, "user_id")
+	if employee_user_id == user:
+		return
+
+	user_roles = frappe.get_roles(user)
+	if "HR Manager" in user_roles or "HR User" in user_roles:
+		return
+
+	approvers = frappe.db.get_value(
+		"Employee", employee,
+		["leave_approver", "expense_approver", "shift_request_approver"],
+		as_dict=True,
+	)
+	if approvers and user in (
+		approvers.get("leave_approver"),
+		approvers.get("expense_approver"),
+		approvers.get("shift_request_approver"),
+	):
+		return
+
+	frappe.throw("この従業員データへのアクセス権限がありません", frappe.PermissionError)
+
+
 SUPPORTED_FIELD_TYPES = [
 	"Link",
 	"Select",
@@ -120,6 +156,7 @@ def are_push_notifications_enabled() -> bool:
 # Attendance
 @frappe.whitelist()
 def get_attendance_calendar_events(employee: str, from_date: str, to_date: str) -> dict[str, str]:
+	_check_employee_access(employee)
 	holidays = get_holidays_for_calendar(employee, from_date, to_date)
 	attendance = get_attendance_for_calendar(employee, from_date, to_date)
 	events = {}
@@ -265,6 +302,7 @@ def get_filters(
 
 @frappe.whitelist()
 def get_shift_request_approvers(employee: str) -> str | list[str]:
+	_check_employee_access(employee)
 	shift_request_approver, department = frappe.get_cached_value(
 		"Employee",
 		employee,
@@ -295,6 +333,7 @@ def get_shift_request_approvers(employee: str) -> str | list[str]:
 
 @frappe.whitelist()
 def get_shifts(employee: str) -> list[dict[str, str]]:
+	_check_employee_access(employee)
 	ShiftAssignment = frappe.qb.DocType("Shift Assignment")
 	ShiftType = frappe.qb.DocType("Shift Type")
 	return (
@@ -373,6 +412,7 @@ def get_leave_balance_map(employee: str) -> dict[str, dict[str, float]]:
 	        'Earned Leave': {'allocated_leaves': 3.0, 'balance_leaves': 3.0},
 	}
 	"""
+	_check_employee_access(employee)
 	from hrms.hr.doctype.leave_application.leave_application import get_leave_details
 
 	date = getdate()
@@ -392,6 +432,7 @@ def get_leave_balance_map(employee: str) -> dict[str, dict[str, float]]:
 
 @frappe.whitelist()
 def get_holidays_for_employee(employee: str) -> list[dict]:
+	_check_employee_access(employee)
 	holiday_list = get_holiday_list_for_employee(employee, raise_exception=False)
 	if not holiday_list:
 		return []
@@ -412,6 +453,7 @@ def get_holidays_for_employee(employee: str) -> list[dict]:
 
 @frappe.whitelist()
 def get_leave_approval_details(employee: str) -> dict:
+	_check_employee_access(employee)
 	leave_approver, department = frappe.get_cached_value(
 		"Employee",
 		employee,
@@ -471,6 +513,7 @@ def get_department_approvers(department: str, parentfield: str) -> list[str]:
 
 @frappe.whitelist()
 def get_leave_types(employee: str, date: str) -> list:
+	_check_employee_access(employee)
 	from hrms.hr.doctype.leave_application.leave_application import get_leave_details
 
 	date = date or getdate()
@@ -527,6 +570,7 @@ def get_expense_claims(
 
 @frappe.whitelist()
 def get_expense_claim_summary(employee: str) -> dict:
+	_check_employee_access(employee)
 	from frappe.query_builder.functions import Sum
 
 	Claim = frappe.qb.DocType("Expense Claim")
@@ -585,6 +629,7 @@ def get_expense_claim_types() -> list[dict]:
 
 @frappe.whitelist()
 def get_expense_approval_details(employee: str) -> dict:
+	_check_employee_access(employee)
 	expense_approver, department = frappe.get_cached_value(
 		"Employee",
 		employee,
@@ -615,6 +660,7 @@ def get_expense_approval_details(employee: str) -> dict:
 # Employee Advance
 @frappe.whitelist()
 def get_employee_advance_balance(employee: str) -> list[dict]:
+	_check_employee_access(employee)
 	Advance = frappe.qb.DocType("Employee Advance")
 
 	advances = (

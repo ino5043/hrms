@@ -215,6 +215,8 @@ class SalaryStructure(Document):
 		variable=None,
 		income_tax_slab=None,
 	):
+		if not frappe.has_permission("Salary Structure", "write"):
+			frappe.throw("権限がありません", frappe.PermissionError)
 		employees = self.get_employees(
 			company=self.company,
 			grade=grade,
@@ -375,6 +377,9 @@ def make_salary_slip(
 	ignore_permissions=False,
 	lwp_days_corrected=None,
 ):
+	if not frappe.has_permission("Salary Slip", "create"):
+		frappe.throw("権限がありません", frappe.PermissionError)
+
 	def postprocess(source, target):
 		if employee:
 			target.employee = employee

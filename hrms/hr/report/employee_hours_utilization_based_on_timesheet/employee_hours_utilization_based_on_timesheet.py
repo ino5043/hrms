@@ -127,18 +127,28 @@ class EmployeeHoursReport:
 		self.stats_by_employee = filtered_data
 
 	def generate_filtered_time_logs(self):
-		additional_filters = ""
+		additional_conditions = []
+		params = {
+			"from_date": self.filters.from_date,
+			"to_date": self.filters.to_date,
+		}
+
+		allowed_tt_fields = {"employee", "company"}
+		allowed_ttd_fields = {"project"}
 
 		filter_fields = ["employee", "project", "company"]
 
 		for field in filter_fields:
 			if self.filters.get(field):
-				if field == "project":
-					additional_filters += f" AND ttd.{field} = {self.filters.get(field)!r}"
-				else:
-					additional_filters += f" AND tt.{field} = {self.filters.get(field)!r}"
+				if field in allowed_ttd_fields:
+					additional_conditions.append(f" AND ttd.{field} = %({field})s")
+					params[field] = self.filters.get(field)
+				elif field in allowed_tt_fields:
+					additional_conditions.append(f" AND tt.{field} = %({field})s")
+					params[field] = self.filters.get(field)
 
-		# nosemgrep: frappe-semgrep-rules.rules.frappe-using-db-sql
+		additional_filters = "".join(additional_conditions)
+
 		self.filtered_time_logs = frappe.db.sql(
 			f"""
 			SELECT tt.employee AS employee, ttd.hours AS hours, ttd.is_billable AS is_billable, ttd.project AS project
@@ -146,10 +156,11 @@ class EmployeeHoursReport:
 			JOIN `tabTimesheet` AS tt
 				ON ttd.parent = tt.name
 			WHERE tt.employee IS NOT NULL
-			AND tt.start_date BETWEEN '{self.filters.from_date}' AND '{self.filters.to_date}'
-			AND tt.end_date BETWEEN '{self.filters.from_date}' AND '{self.filters.to_date}'
+			AND tt.start_date BETWEEN %(from_date)s AND %(to_date)s
+			AND tt.end_date BETWEEN %(from_date)s AND %(to_date)s
 			{additional_filters}
-		"""
+		""",
+			params,
 		)
 
 	def generate_stats_by_employee(self):
