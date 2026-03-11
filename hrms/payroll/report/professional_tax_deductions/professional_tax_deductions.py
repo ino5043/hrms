@@ -48,7 +48,7 @@ def get_data(filters):
 	if not len(component_type_dict):
 		return []
 
-	conditions = get_conditions(filters)
+	cond_str, cond_values = get_conditions(filters)
 
 	# nosemgrep: frappe-semgrep-rules.rules.frappe-using-db-sql
 	entry = frappe.db.sql(
@@ -57,10 +57,10 @@ def get_data(filters):
 		WHERE sal.name = ded.parent
 		AND ded.parentfield = 'deductions'
 		AND ded.parenttype = 'Salary Slip'
-		AND sal.docstatus = 1 {}
-		AND ded.salary_component IN ({})
-		""".format(conditions, ", ".join(["%s"] * len(component_type_dict))),
-		tuple(component_type_dict.keys()),
+		AND sal.docstatus = 1 {cond_str}
+		AND ded.salary_component IN ({comp_placeholders})
+		""".format(cond_str=cond_str, comp_placeholders=", ".join(["%s"] * len(component_type_dict))),
+		cond_values + tuple(component_type_dict.keys()),
 		as_dict=1,
 	)
 

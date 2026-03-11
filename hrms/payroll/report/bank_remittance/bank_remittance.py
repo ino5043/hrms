@@ -6,6 +6,16 @@ import frappe
 from frappe import _, get_all
 
 
+def _mask_account(value):
+	"""Mask sensitive number, showing only last 4 digits."""
+	if not value:
+		return ""
+	s = str(value)
+	if len(s) <= 4:
+		return "****"
+	return "*" * (len(s) - 4) + s[-4:]
+
+
 def execute(filters=None):
 	columns = [
 		{
@@ -79,7 +89,7 @@ def execute(filters=None):
 				"debit_account": salary.debit_acc_no,
 				"payment_date": frappe.utils.formatdate(salary.modified.strftime("%Y-%m-%d")),
 				"bank_name": salary.bank_name,
-				"employee_account_no": salary.bank_account_no,
+				"employee_account_no": _mask_account(salary.bank_account_no),
 				"bank_code": salary.ifsc_code,
 				"employee_name": salary.employee + ": " + salary.employee_name,
 				"currency": frappe.get_cached_value("Company", filters.company, "default_currency"),

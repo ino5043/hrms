@@ -56,27 +56,28 @@ def get_columns(filters):
 
 
 def get_conditions(filters):
-	conditions = [""]
-
+	conditions = []
+	values = []
 	if filters.get("department"):
-		conditions.append("sal.department = '%s' " % (filters["department"]))
-
+		conditions.append("sal.department = %s")
+		values.append(filters["department"])
 	if filters.get("branch"):
-		conditions.append("sal.branch = '%s' " % (filters["branch"]))
-
+		conditions.append("sal.branch = %s")
+		values.append(filters["branch"])
 	if filters.get("company"):
-		conditions.append("sal.company = '%s' " % (filters["company"]))
-
+		conditions.append("sal.company = %s")
+		values.append(filters["company"])
 	if filters.get("month"):
-		conditions.append("month(sal.start_date) = '%s' " % (filters["month"]))
-
+		conditions.append("month(sal.start_date) = %s")
+		values.append(filters["month"])
 	if filters.get("year"):
-		conditions.append("year(start_date) = '%s' " % (filters["year"]))
-
+		conditions.append("year(sal.start_date) = %s")
+		values.append(filters["year"])
 	if filters.get("mode_of_payment"):
-		conditions.append("sal.mode_of_payment = '%s' " % (filters["mode_of_payment"]))
-
-	return " and ".join(conditions)
+		conditions.append("sal.mode_of_payment = %s")
+		values.append(filters["mode_of_payment"])
+	cond_str = (" and " + " and ".join(conditions)) if conditions else ""
+	return cond_str, tuple(values)
 
 
 def prepare_data(entry, component_type_dict):
@@ -108,13 +109,13 @@ def prepare_data(entry, component_type_dict):
 def get_data(filters):
 	data = []
 
-	conditions = get_conditions(filters)
+	cond_str, cond_values = get_conditions(filters)
 
 	salary_slips = frappe.db.sql(
 		""" select sal.name from `tabSalary Slip` sal
-		where docstatus = 1 %s
-		"""
-		% (conditions),
+		where docstatus = 1 {cond_str}
+		""".format(cond_str=cond_str),
+		cond_values,
 		as_dict=1,
 	)
 
@@ -135,10 +136,10 @@ def get_data(filters):
 		where sal.name = ded.parent
 		and ded.parentfield = 'deductions'
 		and ded.parenttype = 'Salary Slip'
-		and sal.docstatus = 1 {}
-		and ded.salary_component in ({})
-		""".format(conditions, ", ".join(["%s"] * len(component_type_dict.keys()))),
-		tuple(component_type_dict.keys()),
+		and sal.docstatus = 1 {cond_str}
+		and ded.salary_component in ({comp_placeholders})
+		""".format(cond_str=cond_str, comp_placeholders=", ".join(["%s"] * len(component_type_dict.keys()))),
+		cond_values + tuple(component_type_dict.keys()),
 		as_dict=1,
 	)
 

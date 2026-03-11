@@ -11,6 +11,16 @@ import erpnext
 Filters = frappe._dict
 
 
+def _mask_account(value):
+	"""Mask sensitive number, showing only last 4 digits."""
+	if not value:
+		return ""
+	s = str(value)
+	if len(s) <= 4:
+		return "****"
+	return "*" * (len(s) - 4) + s[-4:]
+
+
 def execute(filters: Filters = None) -> tuple:
 	is_indian_company = erpnext.get_region(filters.get("company")) == "India"
 	columns = get_columns(is_indian_company)
@@ -85,7 +95,7 @@ def get_data(filters: Filters, is_indian_company: bool) -> list[dict]:
 		}
 
 		if is_indian_company:
-			employee["pan_number"] = employee_pan_dict.get(d.employee)
+			employee["pan_number"] = _mask_account(employee_pan_dict.get(d.employee))
 
 		data.append(employee)
 
